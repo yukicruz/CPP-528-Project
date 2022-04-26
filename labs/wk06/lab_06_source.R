@@ -10,6 +10,7 @@ library( stargazer )
 library( scales )
 library(import)
 library(tidyverse)
+library(kableExtra)
 
 
 set.seed( 1234 )
@@ -107,7 +108,10 @@ stargazer (d,
 ### Dataframe Preview
 
 
-kable(head(df), 'html')
+df %>%
+  head() %>%
+  kbl() %>%
+  kable_styling()
 
 
 #Only Urban, no rural
@@ -204,42 +208,6 @@ p.MHV.Growth.00.to.10[ p.MHV.Growth.00.to.10 > 200 ] <- NA
 mhv.growth[ mhv.growth > 200 ] <- NA
 
 
-hist( df$MedianHomeValue2000, breaks=200, xlim=c(0,500000), 
-      col="gray20", border="white",
-      axes=F, 
-      xlab="MHV (median = $138k)",
-      ylab="",
-      main="Median Home Value in 2000 (2010 US dollars)" )
-
-axis( side=1, at=seq(0,500000,100000), 
-      labels=c("$0","$100k","$200k","$300k","$400k","$500k") )
-
-abline( v=median( df$MedianHomeValue2000, na.rm=T ), col="orange", lwd=3 )
-
-hg <-
-  hist( df$MHV.Growth.00.to.12, breaks=5000,
-        xlim=c(-100,200), yaxt="n", xaxt="n",
-        xlab="", cex.main=1.5,
-        ylab="", main="Growth in Home Value by Census Tract 2000 to 2010",
-        col="gray40", border="white" )
-
-axis( side=1, at=seq( from=-100, to=200, by=50 ),
-      labels=paste0( seq( from=-100, to=200, by=50 ), "%" ) )
-
-ymax <- max( hg$count )
-
-mean.x <- mean( df$MHV.Growth.00.to.12, na.rm=T )
-abline( v=mean.x, col="darkorange", lwd=2, lty=2 )
-text( x=100, y=(0.5*ymax),
-      labels=paste0( "Mean = ", round(mean.x,0), "%"),
-      col="darkorange", cex=1.8, pos=4 )
-
-median.x <- median( df$MHV.Growth.00.to.12, na.rm=T )
-abline( v=median.x, col="dodgerblue", lwd=2, lty=2 )
-text( x=100, y=(0.6*ymax),
-      labels=paste0( "Median = ", round(median.x,0), "%"),
-      col="dodgerblue", cex=1.8, pos=4 )
-
 
 ## Part 2 - Predicting MHV Change
 
@@ -250,7 +218,7 @@ text( x=100, y=(0.6*ymax),
 d6 <- select( d, mhv.growth, p.col,  p.black, p.unemp )
 
 # reduce data density for visualization
-set.seed( 1234 )
+
 d3 <- sample_n( d6, 10000 ) %>% na.omit()
 
 # correlation plots
@@ -264,16 +232,16 @@ pairs( d3, upper.panel=panel.cor, lower.panel=panel.smooth )
 
 set.seed( 1234 )
 
-d2 <- select( d, mhv.growth, p.col, p.black, p.unemp  )
+selected.vars <- select( d, mhv.growth, p.col, p.black, p.unemp  )
 
 # recode some vars to remove outliers and skew
-d2$mhv.growth[ d2$mhv.growth > 200 ] <- NA
-d2$p.col <- log10( d2$p.col + 1 )
-d2$p.black <- log10( d2$p.black+ 1 )
-d2$p.unemp  <- log10( d2$p.unemp  + 1  )
+selected.vars$mhv.growth[ selected.vars$mhv.growth > 200 ] <- NA
+selected.vars$p.col <- log10( selected.vars$p.col + 1 )
+selected.vars$p.black <- log10( selected.vars$p.black+ 1 )
+selected.vars$p.unemp  <- log10( selected.vars$p.unemp  + 1  )
 
 
-d4 <- sample_n( d2, 5000 ) %>% na.omit()
+d4 <- sample_n( selected.vars, 5000 ) %>% na.omit()
 pairs( d4, upper.panel=panel.cor, lower.panel=panel.smooth )
 
 
@@ -284,10 +252,10 @@ pairs( d4, upper.panel=panel.cor, lower.panel=panel.smooth )
 
 reg.data <- d
 
-reg.data$mhv.growth[ d2$mhv.growth > 200 ] <- NA
-reg.data$p.col <- log10( d2$p.col + 1 )
-reg.data$p.black <- log10( d2$p.black+ 1 )
-reg.data$p.unemp <- log10( d2$p.unemp  + 1  )
+reg.data$mhv.growth[ selected.vars$mhv.growth > 200 ] <- NA
+reg.data$p.col <- log10( selected.vars$p.col + 1 )
+reg.data$p.black <- log10( selected.vars$p.black+ 1 )
+reg.data$p.unemp <- log10( selected.vars$p.unemp  + 1  )
 
 
 m1 <- lm( mhv.growth ~  p.black, data=reg.data )
@@ -339,9 +307,9 @@ d.reg <- d
 
 d.reg$mhv.growth[ d.reg$mhv.growth > 200 ] <- NA
 d.reg$p.unemp <- log10( d.reg$p.unemp + 1 )
-d.reg$p.col <- log10( d2$p.col + 1 )
-d.reg$p.black <- log10( d2$p.black+ 1 )
-d.reg$p.unemp <- log10( d2$p.unemp  + 1  )
+d.reg$p.col <- log10( d.reg$p.col + 1 )
+d.reg$p.black <- log10( d.reg$p.black+ 1 )
+d.reg$p.unemp <- log10( d.reg$p.unemp  + 1  )
 
 # average growth in median home value for the city
 d.reg <- 
@@ -350,11 +318,12 @@ d.reg <-
   mutate( metro.mhv.growth = 100 * median( mhv.growth, na.rm=T ) ) %>%
   ungroup() 
 
-m1 <- lm( mhv.growth ~ p.unemp, data=d.reg )
-m2 <- lm( mhv.growth ~  p.col, data=reg.data )
-m3 <- lm( mhv.growth ~  p.black  , data=reg.data )
-m4 <- lm( mhv.growth ~ p.unemp + cbsa+p.col+p.black , data=d.reg )
-stargazer( m1, m2, m3, m4,
+mm1 <- lm( mhv.growth ~ p.unemp, data=d.reg )
+mm2 <- lm( mhv.growth ~  p.col, data=reg.data )
+mm3 <- lm( mhv.growth ~  p.black  , data=reg.data )
+mm4 <- lm( mhv.growth ~ p.unemp + cbsa+p.col+p.black , data=d.reg )
+
+stargazer( mm1, mm2, mm3, mm4,
            type='html',
            digits=2,
            omit.stat = c("rsq","f"),
